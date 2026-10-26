@@ -1,128 +1,151 @@
-"""
-Scan ALL components (not a hand-picked subset) across a bare tPD run's
-targeted layers, using the same bare (no chat template/system prompt)
-true/false examples as visualize_token_firing_bare.py, and rank them by how
-cleanly they separate true vs. false completions at the answer token.
+"""Select a run's top components from its own target statements (shared by token firing and ablation)."""
 
-This is the "which components should I even look at" step before running
-visualize_token_firing_bare.py --components <ids> for a human-readable HTML.
-
-Usage:
-    python3 find_top_components.py \
-        --config config_capitals_true.yaml \
-        --checkpoint ~/spd_out/spd/s-d30f8be0/model_10000.pth \
-        --contrast-jsonl contrast_pairs_verified.jsonl \
-        --layers model.layers.15.mlp.down_proj model.layers.16.mlp.down_proj \
-                 model.layers.17.mlp.down_proj model.layers.18.mlp.down_proj \
-                 model.layers.19.mlp.down_proj \
-        --top-k 8 \
-        --out top_components_capitals_true.json
-"""
-import argparse
-import json
+import csv
+import random
+from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import torch
-from transformers import AutoTokenizer
+from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
-from visualize_token_firing import build_component_model, load_bare_examples
+from spd.configs import Config, LMTaskConfig
+from spd.experiments.lm.honesty_targeted_decomposition.tpd_runs import (
+    POLARITIES,
+    Statements,
+    target_statements,
+)
+from spd.models.component_model import ComponentModel
+from spd.utils.general_utils import bf16_autocast
+
+SPLIT_SEED = 0
+RANK_FRAC = 0.5
+TOP_K_PER_LAYER = 8
+PUNCT = {".", ",", "!", "?"}
+
+ComponentKey = tuple[str, int]  # (module name, component index)
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--config", required=True)
-    ap.add_argument("--checkpoint", required=True)
-    ap.add_argument("--contrast-jsonl", required=True)
-    ap.add_argument("--layers", nargs="+", required=True)
-    ap.add_argument("--top-k", type=int, default=8)
-    ap.add_argument("--ci-alive-threshold", type=float, default=0.01)
-    ap.add_argument("--out", default="top_components_bare.json")
-    args = ap.parse_args()
+@dataclass
+class TargetSplit:
+    rank: Statements  # used to select components
+    held_out: Statements  # used to evaluate them
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    component_model, config = build_component_model(args.config, device)
-    state_dict = torch.load(args.checkpoint, map_location="cpu")
-    component_model.load_state_dict(state_dict)
-    component_model.eval()
 
-    tokenizer = AutoTokenizer.from_pretrained(config.tokenizer_name)
-    ci_fn_dtype = next(component_model.ci_fn.parameters()).dtype
+@dataclass
+class ComponentScores:
+    keys: list[ComponentKey]
+    mean_ci_true: np.ndarray  # [n_components] mean answer-token CI on true statements
+    mean_ci_false: np.ndarray
+    alive: np.ndarray  # [n_components] bool
 
-    examples = load_bare_examples(args.contrast_jsonl, n_examples=None)
-    print(f"Loaded {len(examples)} examples ({len(examples) // 2} unique questions x true/false)")
+    @property
+    def scores(self) -> np.ndarray:
+        """> 0: fires more on false statements."""
+        return self.mean_ci_false - self.mean_ci_true
 
-    per_layer_vals = {layer: [] for layer in args.layers}  # each: list of [C] answer-token CI
-    labels = []
 
-    with torch.no_grad():
-        for ex in examples:
-            prompt = tokenizer.apply_chat_template(
-                ex["messages"], tokenize=False, add_generation_prompt=True
+def split_target_statements(name: str) -> TargetSplit:
+    """Seeded split of each polarity. Equal-length (paired) lists get the same permutation."""
+    rank: Statements = {}
+    held_out: Statements = {}
+    for polarity, lines in target_statements(name).items():
+        order = list(range(len(lines)))
+        random.Random(SPLIT_SEED).shuffle(order)
+        n_rank = round(RANK_FRAC * len(lines))
+        rank[polarity] = [lines[i] for i in sorted(order[:n_rank])]
+        held_out[polarity] = [lines[i] for i in sorted(order[n_rank:])]
+    return TargetSplit(rank, held_out)
+
+
+@torch.no_grad()
+def token_ci(
+    component_model: ComponentModel, config: Config, tokenizer: PreTrainedTokenizerBase, text: str
+) -> tuple[list[str], dict[str, np.ndarray]]:
+    """Tokens of `text` and the CI of every component at every token: {module: [seq, C]}."""
+    ids = torch.tensor([tokenizer.encode(text)])
+    assert isinstance(config.task_config, LMTaskConfig)
+    assert ids.shape[1] <= config.task_config.max_seq_len, text
+    device = next(component_model.ci_fn.parameters()).device
+    ci_dtype = next(component_model.ci_fn.parameters()).dtype
+    with bf16_autocast(enabled=config.autocast_bf16):
+        out = component_model(ids.to(device), cache_type="input")
+        acts = {k: v.to(ci_dtype) for k, v in out.cache.items()}
+        ci = component_model.calc_causal_importances(acts, sampling=config.sampling).lower_leaky
+    tokens = [tokenizer.decode([t]) for t in ids[0].tolist()]
+    return tokens, {m: v[0].float().cpu().numpy() for m, v in ci.items()}
+
+
+def answer_position(tokens: list[str]) -> int:
+    """Last token that is not punctuation: where a statement's truth value is decided."""
+    pos = len(tokens) - 1
+    if tokens[pos].strip() in PUNCT:
+        pos -= 1
+    return pos
+
+
+def answer_token_ci(
+    component_model: ComponentModel,
+    config: Config,
+    tokenizer: PreTrainedTokenizerBase,
+    texts: list[str],
+) -> dict[str, np.ndarray]:
+    """{module: [n_texts, C]} CI at the answer token of each text."""
+    per_module: dict[str, list[np.ndarray]] = {m: [] for m in component_model.target_module_paths}
+    for text in texts:
+        tokens, ci = token_ci(component_model, config, tokenizer, text)
+        pos = answer_position(tokens)
+        for m in per_module:
+            per_module[m].append(ci[m][pos])
+    return {m: np.stack(v) for m, v in per_module.items()}
+
+
+def score_components(
+    component_model: ComponentModel,
+    config: Config,
+    tokenizer: PreTrainedTokenizerBase,
+    statements: Statements,
+) -> ComponentScores:
+    mean_ci = {
+        polarity: answer_token_ci(component_model, config, tokenizer, statements[polarity])
+        for polarity in POLARITIES
+    }
+    modules = component_model.target_module_paths
+    keys = [(m, c) for m in modules for c in range(mean_ci["true"][m].shape[1])]
+    mean_true = np.concatenate([mean_ci["true"][m].mean(0) for m in modules])
+    mean_false = np.concatenate([mean_ci["false"][m].mean(0) for m in modules])
+    alive = np.maximum(mean_true, mean_false) > config.ci_alive_threshold
+    return ComponentScores(keys, mean_true, mean_false, alive)
+
+
+def top_components_per_layer(scores: ComponentScores, k: int) -> dict[str, list[int]]:
+    """{module: the k components with the largest |score| in that module}."""
+    order = np.argsort(-np.abs(scores.scores))
+    per_layer: dict[str, list[int]] = {}
+    for i in order:
+        module, c = scores.keys[i]
+        if len(per_layer.setdefault(module, [])) < k:
+            per_layer[module].append(c)
+    return per_layer
+
+
+def layer_index(module_name: str) -> int:
+    parts = module_name.split(".")
+    return int(parts[parts.index("layers") + 1])
+
+
+def write_component_scores(scores: ComponentScores, path: Path) -> None:
+    with open(path, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["module", "component", "score", "mean_ci_true", "mean_ci_false", "alive"])
+        for i in np.argsort(-np.abs(scores.scores)):
+            w.writerow(
+                [
+                    scores.keys[i][0],
+                    scores.keys[i][1],
+                    f"{scores.scores[i]:.6g}",
+                    f"{scores.mean_ci_true[i]:.6g}",
+                    f"{scores.mean_ci_false[i]:.6g}",
+                    bool(scores.alive[i]),
+                ]
             )
-            full_text = prompt + ex["completion"]
-            enc = tokenizer(
-                full_text, return_tensors="pt", truncation=True, max_length=config.task_config.max_seq_len
-            )
-            input_ids = enc["input_ids"].to(device)
-            token_strs = tokenizer.convert_ids_to_tokens(enc["input_ids"][0])
-            token_strs = [t.replace("Ġ", " ").replace("▁", " ") for t in token_strs]
-
-            out = component_model(input_ids, cache_type="input")
-            pre_weight_acts = {k: v.to(ci_fn_dtype) for k, v in out.cache.items()}
-            ci_outputs = component_model.calc_causal_importances(pre_weight_acts, sampling=config.sampling)
-
-            answer_pos = len(token_strs) - 1
-            if token_strs[answer_pos].strip() in {".", ",", "!", "?"}:
-                answer_pos -= 1
-
-            for layer in args.layers:
-                layer_ci = ci_outputs.lower_leaky[layer][0].cpu().numpy()  # [seq_len, C]
-                per_layer_vals[layer].append(layer_ci[answer_pos])
-
-            labels.append(ex["label"])
-
-    labels = np.array(labels)
-    true_mask = labels == "true"
-    false_mask = labels == "false"
-
-    results = {}
-    for layer in args.layers:
-        vals = np.stack(per_layer_vals[layer])  # [n_examples, C]
-        true_vals = vals[true_mask]
-        false_vals = vals[false_mask]
-        mean_true = true_vals.mean(axis=0)
-        mean_false = false_vals.mean(axis=0)
-        alive = np.maximum(mean_true, mean_false) > args.ci_alive_threshold
-        separation = np.abs(mean_true - mean_false)
-
-        ranked = np.argsort(-separation)
-        layer_results = []
-        for c in ranked[: args.top_k]:
-            layer_results.append(
-                {
-                    "component": int(c),
-                    "mean_true": float(mean_true[c]),
-                    "mean_false": float(mean_false[c]),
-                    "separation": float(separation[c]),
-                    "alive": bool(alive[c]),
-                }
-            )
-        results[layer] = layer_results
-
-        print(
-            f"\n=== {layer}: top {len(layer_results)} by |mean_true - mean_false| "
-            f"({int(alive.sum())} alive of {len(alive)} total) ==="
-        )
-        for r in layer_results:
-            print(
-                f"  component {r['component']:3d}: true={r['mean_true']:.4f} "
-                f"false={r['mean_false']:.4f} sep={r['separation']:.4f} alive={r['alive']}"
-            )
-
-    with open(args.out, "w") as f:
-        json.dump(results, f, indent=2)
-    print(f"\nSaved ranked components to {args.out}")
-
-
-if __name__ == "__main__":
-    main()

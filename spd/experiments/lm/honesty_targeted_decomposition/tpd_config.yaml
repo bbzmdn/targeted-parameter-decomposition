@@ -1,0 +1,145 @@
+# Shared tPD config for the honesty runs; run_tpd.py adds label and task_config.prompts_file.
+wandb_project: spd
+wandb_run_name: null
+wandb_run_name_prefix: ""
+sync_checkpoints_to_wandb: false
+
+# --- General ---
+seed: 0
+n_mask_samples: 1
+ci_config:
+  mode: global
+  fn_type: global_shared_mlp
+  hidden_dims: [512]
+sampling: continuous
+sigmoid_type: leaky_hard
+module_info:
+  # down_proj of layers 12-21; all 28 layers OOM once PersistentPGDReconLoss starts
+  - module_pattern: model.layers.12.mlp.down_proj
+    C: 96
+  - module_pattern: model.layers.13.mlp.down_proj
+    C: 96
+  - module_pattern: model.layers.14.mlp.down_proj
+    C: 96
+  - module_pattern: model.layers.15.mlp.down_proj
+    C: 96
+  - module_pattern: model.layers.16.mlp.down_proj
+    C: 96
+  - module_pattern: model.layers.17.mlp.down_proj
+    C: 96
+  - module_pattern: model.layers.18.mlp.down_proj
+    C: 96
+  - module_pattern: model.layers.19.mlp.down_proj
+    C: 96
+  - module_pattern: model.layers.20.mlp.down_proj
+    C: 96
+  - module_pattern: model.layers.21.mlp.down_proj
+    C: 96
+identity_module_info: null
+use_delta_component: true
+
+# --- Loss config ---
+loss_metric_configs:
+  - classname: ImportanceMinimalityLoss
+    coeff: 1.0e-3
+    pnorm: 2.0
+    beta: 0.2
+    p_anneal_start_frac: 0.0
+    p_anneal_final_p: 1.0
+    p_anneal_end_frac: 1.0
+    eps: 1.0e-12
+    coeff_warmup_frac: 0.2
+    coeff_peak_multiplier: 4.0
+    coeff_anneal_start_frac: 0.2
+    coeff_anneal_end_frac: 1.0
+  - classname: StochasticReconSubsetLoss
+    coeff: 1
+    routing:
+      type: uniform_k_subset
+  - classname: PersistentPGDReconLoss
+    coeff: 0.5
+    optimizer:
+      type: adam
+      beta1: 0.5
+      beta2: 0.99
+      eps: 1.0e-08
+      lr_schedule:
+        start_val: 0.01
+        warmup_pct: 0.025
+        final_val_frac: 0.1
+        fn_type: cosine
+    scope:
+      type: per_batch_per_position
+    use_sigmoid_parameterization: false
+    n_warmup_steps: 2
+    start_frac: 0.8
+output_loss_type: kl
+
+# --- Training ---
+lr_schedule:
+  start_val: 5e-4
+  warmup_pct: 0.0
+  final_val_frac: 0.1
+  fn_type: cosine
+steps: 10_000
+batch_size: 16
+eval_batch_size: 16
+grad_clip_norm_components: 0.01
+grad_clip_norm_ci_fns: null
+component_weight_decay: 0.1
+autocast_bf16: true
+
+# --- Faithfulness Warmup ---
+faithfulness_warmup_steps: 0
+
+# --- Logging & Saving ---
+train_log_freq: 100
+eval_freq: 1000
+slow_eval_freq: 4000
+n_eval_steps: 1
+slow_eval_on_first_step: true
+save_freq: 10000
+ci_alive_threshold: 0.01
+
+# --- Eval Metrics ---
+eval_metric_configs:
+  - classname: CI_L0
+    groups:
+      total:
+        - "*"
+  - classname: TargetReconLoss
+    rounding_threshold: 0.01
+  - classname: NontargetReconLoss
+    rounding_threshold: 0.01
+    n_nontarget_batches: 10
+  - classname: WeightMagnitude
+  - classname: UnmaskedReconLoss
+  - classname: CIMeanPerComponent
+  - classname: CIHiddenActsReconLoss
+
+# --- Pretrained model info ---
+pretrained_model_class: transformers.AutoModelForCausalLM
+pretrained_model_path: null
+pretrained_model_name: Qwen/Qwen2.5-7B-Instruct
+pretrained_model_output_attr: logits
+tokenizer_name: Qwen/Qwen2.5-7B-Instruct
+
+# --- Task Specific (target data) ---
+task_config:
+  task_name: lm
+  max_seq_len: 128
+
+# --- Targeted Decomposition (nontarget data: general text) ---
+nontarget_task_config:
+  task_name: lm
+  dataset_name: monology/pile-uncopyrighted
+  max_seq_len: 128
+  column_name: text
+  is_tokenized: false
+  streaming: true
+  train_data_split: train
+  eval_data_split: train
+  dataset_seed: 0
+nontarget_batch_size: 16
+nontarget_eval_batch_size: 16
+nontarget_impmin_coeff_ratio: 2

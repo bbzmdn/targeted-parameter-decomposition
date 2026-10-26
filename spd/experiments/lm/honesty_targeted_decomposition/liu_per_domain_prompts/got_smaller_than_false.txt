@@ -1,0 +1,15 @@
+Ninety-four is smaller than seventy-seven.
+Ninety-six is smaller than fifty-five.
+Eighty-five is smaller than eighty-three.
+Ninety-six is smaller than seventy-four.
+Seventy-four is smaller than sixty-one.
+Fifty-nine is smaller than fifty-five.
+Sixty-one is smaller than fifty-one.
+Seventy-two is smaller than sixty-three.
+Seventy-four is smaller than fifty-seven.
+Seventy-five is smaller than sixty-nine.
+Eighty-five is smaller than sixty-nine.
+Ninety-nine is smaller than seventy-two.
+Seventy-seven is smaller than fifty-six.
+Ninety-eight is smaller than sixty-eight.
+Sixty-four is smaller than sixty-one.

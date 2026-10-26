@@ -1,0 +1,15 @@
+The Spanish word 'bosque' does not mean 'forest'.
+The Spanish word 'resultado' does not mean 'result'.
+The Spanish word 'cocinero' does not mean 'cook'.
+The Spanish word 'estudiante' does not mean 'student'.
+The Spanish word 'ala' does not mean 'wing'.
+The Spanish word 'cuerpo' does not mean 'body'.
+The Spanish word 'hola' does not mean 'hello'.
+The Spanish word 'comer' does not mean 'to eat'.
+The Spanish word 'sol' does not mean 'sun'.
+The Spanish word 'coche' does not mean 'car'.
+The Spanish word 'ayudar' does not mean 'to help'.
+The Spanish word 'isla' does not mean 'island'.
+The Spanish word 'enemigo' does not mean 'enemy'.
+The Spanish word 'hijo' does not mean 'son'.
+The Spanish word 'rojo' does not mean 'red'.

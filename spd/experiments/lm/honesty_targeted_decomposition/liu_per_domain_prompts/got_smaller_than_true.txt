@@ -1,0 +1,15 @@
+Fifty-three is smaller than seventy-three.
+Eighty-six is smaller than ninety-two.
+Seventy-one is smaller than ninety-one.
+Sixty-three is smaller than ninety-five.
+Sixty-seven is smaller than eighty-four.
+Eighty-five is smaller than eighty-seven.
+Fifty-two is smaller than fifty-six.
+Eighty-four is smaller than ninety-four.
+Sixty-one is smaller than ninety-three.
+Fifty-seven is smaller than sixty-seven.
+Fifty-two is smaller than sixty-four.
+Fifty-nine is smaller than ninety-four.
+Fifty-one is smaller than sixty-three.
+Sixty-six is smaller than eighty-one.
+Eighty-four is smaller than eighty-nine.

@@ -1,0 +1,15 @@
+Fifty-three is larger than ninety-one.
+Ninety-two is larger than ninety-nine.
+Fifty-seven is larger than sixty-eight.
+Fifty-eight is larger than eighty-five.
+Seventy-three is larger than ninety-six.
+Sixty-one is larger than seventy-seven.
+Fifty-one is larger than seventy-nine.
+Sixty-eight is larger than seventy-one.
+Sixty-five is larger than eighty-five.
+Eighty-six is larger than ninety-seven.
+Sixty-eight is larger than eighty-four.
+Fifty-eight is larger than seventy-one.
+Eighty-two is larger than ninety-three.
+Fifty-two is larger than sixty-seven.
+Fifty-two is larger than eighty-six.

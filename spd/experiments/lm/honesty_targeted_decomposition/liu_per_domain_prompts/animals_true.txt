@@ -1,0 +1,14 @@
+The zebra has a diet of herbivore.
+The axolotl has a diet of carnivore.
+Human uses for penguin include tourism, research.
+The dolphin is a mammal.
+The octopus has a habitat of marine.
+The gorilla uses knuckle-walking for locomotion.
+The penguin uses walking/swimming for locomotion.
+The crocodile has a diet of  carnivore.
+The narwhal has a habitat of arctic.
+The sparrow uses flying for locomotion.
+The beaver has a diet of herbivore.
+The gorilla has a diet of herbivore.
+The tiger has a diet of carnivore.
+The porcupine has a diet of herbivore.
