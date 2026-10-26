@@ -8,6 +8,7 @@ import torch
 from jaxtyping import Float
 from matplotlib import pyplot as plt
 from PIL import Image
+Image.MAX_IMAGE_PIXELS = None
 from torch import Tensor
 
 from spd.configs import SamplingType

@@ -511,8 +511,8 @@ def optimize(
             or step == config.steps
         ) and is_main_process():
             assert out_dir is not None
-            # Save the state dict of the underlying module (not DDP wrapper)
-            save_file(component_model.state_dict(), out_dir / f"model_{step}.pth")
+            # Save the trained weights of the underlying module (not DDP wrapper)
+            save_file(component_model.trained_state_dict(), out_dir / f"model_{step}.pth")
             logger.info(f"Saved model, optimizer, and out_dir to {out_dir}")
             if config.wandb_project and config.sync_checkpoints_to_wandb:
                 try_wandb(

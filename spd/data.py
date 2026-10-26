@@ -38,7 +38,16 @@ def _keep_single_column(dataset: Dataset, col_name: str) -> Dataset:
     Acts on a HuggingFace dataset to delete all columns apart from a single column name - useful
     when we want to tokenize and mix together different strings.
     """
-    for key in dataset.features:
+    features = dataset.features
+    if features is None:
+        # Some streaming IterableDatasets (e.g. JSON-Lines-backed ones like
+        # monology/pile-uncopyrighted) don't declare a features schema up
+        # front -- infer column names from one example instead.
+        sample = next(iter(dataset))
+        column_names = list(sample.keys())
+    else:
+        column_names = list(features)
+    for key in column_names:
         if key != col_name:
             dataset = dataset.remove_columns(key)
     return dataset

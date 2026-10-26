@@ -181,3 +181,4 @@ cython_debug/
 *.schema.json
 
 .claude/worktrees
+archive/

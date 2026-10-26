@@ -621,8 +621,15 @@ class ComponentModel(LoadableModule):
 
         _validate_checkpoint_ci_config_compatibility(comp_model_weights, config.ci_config)
 
-        comp_model.load_state_dict(comp_model_weights)
+        missing, unexpected = comp_model.load_state_dict(comp_model_weights, strict=False)
+        assert not unexpected, f"Unexpected keys in checkpoint: {unexpected}"
+        missing_trained = [k for k in missing if not k.startswith("target_model.")]
+        assert not missing_trained, f"Checkpoint is missing trained weights: {missing_trained}"
         return comp_model
+
+    def trained_state_dict(self) -> dict[str, Tensor]:
+        """State dict without the frozen target model weights, which are reloaded from their source."""
+        return {k: v for k, v in self.state_dict().items() if not k.startswith("target_model.")}
 
     @classmethod
     @override

@@ -126,6 +126,7 @@ Targeted decomposition decomposes a model using narrow "target" inputs (e.g., sp
 - For TMS/ResidMLP: `active_indices` on `TMSTaskConfig`/`ResidMLPTaskConfig` restricts which features can be active
 - For LM: `prompts_file` on `LMTaskConfig` loads target data from a text file (one prompt per line)
 - Implementation: `spd/run_spd.py` (nontarget training loop), `spd/losses.py` (`force_delta` param), `spd/experiments/lm/prompts_dataset.py` (prompts loading)
+- Honesty experiment (Qwen2.5-7B, true/false statements): `spd/experiments/lm/honesty_targeted_decomposition/` (see its README)
 
 **Experiment Structure:**
 
@@ -474,6 +475,8 @@ model = ComponentModel.from_pretrained("/path/to/checkpoint.pt")
 - Local: Direct path to checkpoint file (config must be in same directory as `final_config.yaml`)
 
 Downloaded runs are cached in `SPD_OUT_DIR/runs/<project>-<run_id>/`.
+
+Checkpoints (`model_<step>.pth`) hold only the trained weights (`ComponentModel.trained_state_dict()`); the frozen target model is reloaded from `pretrained_model_name`/`pretrained_model_path`.
 
 ### Cluster Usage Guidelines
 
