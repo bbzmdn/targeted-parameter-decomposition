@@ -1,8 +1,40 @@
 # Honesty targeted decomposition
 
-tPD of the `mlp.down_proj` matrices of layers 12-21 of Qwen2.5-7B-Instruct (96 components per
-layer, 960 total), targeting bare true or false statements, with the Pile as non-target data.
-Write-up, methods and numbers: [RESULTS.md](RESULTS.md).
+Can targeted parameter decomposition (tPD) find the mechanisms a language model uses to tell
+true from false statements, and to lie? Activation probes show that LLMs linearly represent
+whether a statement is true (Marks and Tegmark, 2024; Liu et al., 2024), but they do not say
+which weights compute that verdict. tPD decomposes weight matrices into rank-one components and
+learns, for every input, which components the model actually uses. Targeting it at true or
+false statements should isolate the weights involved in processing truth.
+
+We decompose the `mlp.down_proj` matrices of layers 12-21 of Qwen2.5-7B-Instruct (96 components
+per layer, 960 total), targeting bare true or false statements, with the Pile as non-target data
+so the rest of the model's behaviour is preserved. We then ask three questions of each
+decomposition:
+
+1. **Detection.** Do the components' causal importances (CI) tell true from false statements,
+   also on datasets the decomposition never saw? (logistic probe, token firing)
+2. **Causality.** Does ablating the most truth-selective components change whether the model
+   lies when told to? (group ablation)
+3. **Representation.** Do those components write along the residual-stream truth direction?
+   (truth-direction alignment)
+
+## Results
+
+The full write-up, with methods and tables, is in [RESULTS.md](RESULTS.md). In short:
+
+- **Detection works.** A logistic probe on the 960 CI values reaches 83.3 mean AUC over 18
+  held-out domains, close to the best probe on raw activations (86.3) with about 37 times
+  fewer features. It does well on some domains where activation probes are near chance.
+- **Causality only shows up all at once.** Ablating every component raises truthful answers
+  under a lying instruction from 17% to 46-54%. No small selected group beats random groups of
+  the same size; small groups change how the model lies, not whether it lies.
+- **The components do not look like a truth representation.** Their output directions are not
+  aligned with the activation truth direction, and the truth signal is spread over all
+  decomposed layers.
+
+tPD is useful as a compact truth detector, but so far it does not isolate a causal truth
+mechanism.
 
 ## The 8 runs
 
@@ -92,3 +124,12 @@ results/
 - `prompts/`: tPD target data, written by `build_prompts.py`
 - `liu_per_domain_prompts/`: evaluation domains. The Geometry of Truth and TruthfulQA files are
   written by `export_geometry_of_truth.py` and `export_truthfulqa.py`
+
+## Credits
+
+Targeted parameter decomposition is the method of Vigouroux and Sharkey (2026), "Targeted
+Recovery of Weight-Space Mechanisms From Neural Networks". This experiment runs on their
+codebase ([Antovigo/targeted-parameter-decomposition](https://github.com/Antovigo/targeted-parameter-decomposition)),
+itself a fork of [goodfire-ai/spd](https://github.com/goodfire-ai/spd) (Stochastic Parameter
+Decomposition; Bushnaq, Braun and Sharkey, 2025). Evaluation data comes from Liu et al. (2024),
+Marks and Tegmark (2024, Geometry of Truth) and Lin et al. (2022, TruthfulQA).

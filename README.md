@@ -1,5 +1,7 @@
 **This repository contains the code accompanying the paper "Targeted Recovery of Weight-Space Mechanisms From Neural Networks" (Vigouroux and Sharkey, 2026). Example configurations for targeted decomposition can be found in [`spd/experiments/lm/targeted_decomposition/`](spd/experiments/lm/targeted_decomposition/), and analysis scripts can be found in [`spd/scripts/validation/`](spd/scripts/validation/). It is a fork of the [SPD](https://github.com/goodfire-ai/spd) repository, which implements the framework introduced in [Stochastic Parameter Decomposition](https://arxiv.org/abs/2506.20790).**
 
+**Honesty experiment.** [`spd/experiments/lm/honesty_targeted_decomposition/`](spd/experiments/lm/honesty_targeted_decomposition/) applies targeted decomposition to Qwen2.5-7B-Instruct, targeting true and false statements, to test whether tPD can find the mechanisms behind truthfulness and lying. See its [README](spd/experiments/lm/honesty_targeted_decomposition/README.md) for the runs, the analysis pipeline and the results.
+
 # SPD - Stochastic Parameter Decomposition
 
 ## Installation
@@ -30,48 +32,6 @@ these should cover most modules). See `spd/experiments/lm/ss_gpt2_config.yaml` f
 loads from huggingface and `spd/experiments/lm/ss_gpt2_simple_config.yaml` for an example which
 loads from https://github.com/goodfire-ai/simple_stories_train (with the model weights saved on
 wandb).
-
-## Honesty Targeted Decomposition Example (Qwen2.5-7B)
-
-[`spd/experiments/lm/honesty_targeted_decomposition/`](spd/experiments/lm/honesty_targeted_decomposition/)
-is a worked example of targeted decomposition on a real, non-toy model:
-[`Qwen/Qwen2.5-7B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct), targeting honest
-vs. dishonest statement generation. All configs there target the same five layers,
-`model.layers.{15..19}.mlp.down_proj` (C=96 each) — a starting guess (not yet independently
-validated) informed by prior work on where Qwen-family honesty signal concentrates.
-
-**Data**: two contrast datasets, each with a true-statement and a false-statement variant:
-- **capitals** — 35 unique capital-city facts (e.g. "The capital of France is Paris."),
-  sourced from `contrast_pairs.jsonl`, built into `prompts_capitals/`. This dataset has been
-  built and run end-to-end (see `analysis_capitals/`).
-- **Liu et al.** — a broader multi-domain factual dataset (intended to span 12 domains),
-  built into `prompts_liu/all_domains_{true,false}.txt` via `config_liu_true.yaml` /
-  `config_liu_false.yaml`. This has only been built, **not yet run** through decomposition.
-
-**Workflow**:
-1. **Build the target prompts**, e.g. for capitals:
-   ```bash
-   python build_prompts_capitals.py --jsonl contrast_pairs.jsonl --out-dir prompts_capitals
-   ```
-   This writes `capitals_true.txt` / `capitals_false.txt` / `capitals_combined.txt`.
-2. **Run the decomposition** using one of the `config_*.yaml` files (each config targets a
-   single polarity — true-only or false-only — of one dataset), e.g.:
-   ```bash
-   python spd/experiments/lm/lm_decomposition.py \
-       spd/experiments/lm/honesty_targeted_decomposition/config_capitals_false.yaml
-   ```
-   Checkpoints are written to `~/spd_out/spd/<run_id>/model_<step>.pth` (see `SPD_OUT_DIR` in
-   `spd/settings.py`); the analysis step below requires one of these checkpoint paths.
-3. **Analyze the results**:
-   - `find_top_components.py --config <config.yaml> --checkpoint <checkpoint.pth> --contrast-jsonl contrast_pairs.jsonl --layers <module patterns> --out top_components.json`
-     scans every component per targeted layer and ranks them by how well they separate
-     true vs. false completions.
-   - `visualize_token_firing.py` (or `visualize_token_firing_multilayer.py`, which loads the
-     model once for several layers instead of once per layer) then renders per-token causal
-     importance heatmaps for the top components found above.
-
-   Results of this pipeline for the capitals dataset are stored in `analysis_capitals/` (see
-   `analysis_capitals/SUMMARY.md` for a write-up of the findings).
 
 ## CLI Commands
 

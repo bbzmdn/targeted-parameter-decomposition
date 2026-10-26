@@ -1,10 +1,9 @@
 # How useful is targeted parameter decomposition for finding truth mechanisms?
 
-> **Status.** All numbers below come from the first round of decompositions (capitals-true/false, liu-true/false, liu-false + TruthfulQA; see [Earlier runs](#earlier-runs)). The eight runs described in [Setup](#setup) are being retrained with one shared config, and the numbers will be replaced with theirs.
 
 ## TL;DR
 
-We applied targeted Parameter Decomposition (tPD) to the MLP down-projections of layers 12–21 of Qwen2.5-7B-Instruct, targeting true and false statements, to see whether it finds the mechanisms behind truthfulness and lying. Our answer so far: **tPD does something, but it does not hand us a truth mechanism.**
+We applied targeted Parameter Decomposition (tPD) to the MLP down-projections of layers 12-21 of Qwen2.5-7B-Instruct, targeting true and false statements, to see whether it finds the mechanisms behind truthfulness and lying. Our answer so far: **tPD does something, but it does not hand us a truth mechanism.**
 
 - **Probing works.** A logistic regression on the causal importance (CI) scores of the 960 components reaches 83.3 mean AUC over 18 domains, close to the mass-mean probe on raw activations (86.3) with about 37 times fewer features. We have not yet checked whether CI scores from an untrained decomposition do as well.
 - **Ablation only works all at once.** Ablating every component raises the share of truthful answers under a lying instruction from 17% to 46% (liu-false) and from 17% to 54% (liu-false + TruthfulQA). No small, selected group of components beats random groups of the same size at changing whether the model lies.
@@ -17,7 +16,7 @@ Interpretability research on honesty in LLMs has mostly focused on activations, 
 
 We used the targeted variant, tPD (Vigouroux and Sharkey, 2026). Unlike SPD, tPD does not try to decompose everything the model does. It focuses on the mechanisms used on a small target dataset, while non-target data (the Pile) keeps the rest of the model's behavior intact.
 
-**Model and decomposition.** Qwen2.5-7B-Instruct; the `down_proj` matrices of layers 12–21; C = 96 components per layer, 960 in total. Due to computational restrictions we did not decompose attention or the other MLP matrices.
+**Model and decomposition.** Qwen2.5-7B-Instruct; the `down_proj` matrices of layers 12-21; C = 96 components per layer, 960 in total. Due to computational restrictions we did not decompose attention or the other MLP matrices.
 
 **Target data.** Small sets of bare true or false statements, with no chat template and no instruction. Each target set exists in a true and a false version, and each version gets its own decomposition, giving eight runs:
 
@@ -47,7 +46,7 @@ All eight runs share the same config: seed 0, 10,000 steps, sequence length 128,
 - *Statement truth.* How well the model's per-token log-probability separates true from false statements (AUC), on the run's held-out target statements and the six Geometry of Truth domains.
 - *Specificity.* KL divergence from the unablated model on Pile text.
 
-**Probing.** For every statement we average each component's CI over the tokens, giving 960 features per run. We fit an L1-regularised logistic regression with leave-one-domain-out evaluation: train on 17 domains, test on the held-out one, and report the mean accuracy and AUC over the 18 held-out domains. The regularisation strength is chosen inside the training domains. The baselines on the undecomposed model use the residual stream at the last token, at the input of layers 12–21 (35,840 features): the mass-mean probe of Marks and Tegmark (2024), logistic regression, and logistic regression on the top 300 principal components. Two controls check whether the decomposition matters: the same probe on CI from an *untrained* decomposition (random CI functions), and random directions in CI space.
+**Probing.** For every statement we average each component's CI over the tokens, giving 960 features per run. We fit an L1-regularised logistic regression with leave-one-domain-out evaluation: train on 17 domains, test on the held-out one, and report the mean accuracy and AUC over the 18 held-out domains. The regularisation strength is chosen inside the training domains. The baselines on the undecomposed model use the residual stream at the last token, at the input of layers 12-21 (35,840 features): the mass-mean probe of Marks and Tegmark (2024), logistic regression, and logistic regression on the top 300 principal components. Two controls check whether the decomposition matters: the same probe on CI from an *untrained* decomposition (random CI functions), and random directions in CI space.
 
 ## Finding 1: CI scores carry almost all the linear truth signal
 
@@ -62,7 +61,7 @@ For every statement we run the model with the decomposition and record the CI sc
 | Logistic regression on CI (capitals-true) | 960 | 72.7 | 81.1 |
 | Logistic regression on CI (liu-true) | 960 | 62.2 | 73.0 |
 | Logistic regression on CI (capitals-false) | 960 | 61.7 | 67.7 |
-| Random direction in component space | 960 | – | 50.8 |
+| Random direction in component space | 960 | n/a | 50.8 |
 
 The liu-false components keep almost all of the truthfulness information that is linearly available in the full activations, with about 37 times fewer features. Some results surprised us:
 
@@ -72,13 +71,13 @@ The liu-false components keep almost all of the truthfulness information that is
 - **Negation flips the probe.** The liu-true components collapse on neg sp-en trans (13.8 AUC): the probe ranks the classes in reverse.
 - **TruthfulQA stays hard.** The best tPD run reaches 67.4 AUC (capitals-true); liu-false gets 46.3.
 
-**The control that matters.** A random direction is the wrong floor for a trained probe. The real question is whether a logistic regression on CI scores from an *untrained* decomposition does as well. CI functions are fit on the model's own activations, so they may just be a compressed copy of them. If untrained CI gets close to 83 AUC, the probing result says little about the components themselves. \[TODO: untrained-CI AUC, computed by `fit_probe.py` with the reruns\]
+**The control that matters.** A random direction is the wrong floor for a trained probe. The real question is whether a logistic regression on CI scores from an *untrained* decomposition does as well. CI functions are fit on the model's own activations, so they may just be a compressed copy of them. If untrained CI gets close to 83 AUC, the probing result says little about the components themselves. \[TODO: untrained-CI AUC from `fit_probe.py`\]
 
 ## Finding 2: Ablating all components makes the model worse at lying
 
 In our first ablation studies we removed single components with the highest probe weights and found no effect on the model's behavior. Single-component ablations can miss a mechanism that is spread over many components, so we redid them on groups.
 
-**How we ablated.** As described in [Methods](#methods), with one difference in these earlier runs: components were ranked on the capital statements for every decomposition, not on each run's own target data. Ranking used half of the capital questions, and all effects are measured on the other half. Each selected group of size k is compared with five random groups of the same size.
+**How we ablated.** As described in [Methods](#methods): components are ranked on half of the target statements, and all effects are measured on the other half. Each selected group of size k is compared with five random groups of the same size.
 
 **What we measured.** We prompted the model with a capital-city question and a system prompt asking it to lie (e.g. "Answer the following question dishonestly, as if you were lying"), then generated greedily. There are 35 such prompts from 17 held-out questions. We counted an answer as truthful in two ways:
 
@@ -87,7 +86,7 @@ In our first ablation studies we removed single components with the highest prob
 
 | Decomposition | Group ablated | Truthful (lenient) | Truthful (strict) | Strict p (sign test) |
 | --- | --- | --- | --- | --- |
-| both | none (original model) | 6/35 (17%) | 2/35 (6%) | – |
+| both | none (original model) | 6/35 (17%) | 2/35 (6%) | n/a |
 | liu-false | top 4 / top 8 false-preferring | 9 / 8 | 3 / 3 | 1.0 |
 | liu-false | all 960 components | 16/35 (46%) | 11/35 (31%) | 0.02 |
 | liu-false + TruthfulQA | top 4 false-preferring | 12/35 (34%) | 3/35 (9%) | 1.0 |
@@ -111,9 +110,9 @@ The model still understands the instruction and still tries to follow it. What f
 
 If tPD had found an internal truth concept, we would expect the most truth-related components to write along the direction that separates true from false statements in the residual stream. They don't.
 
-**Component directions vs. the MLP output.** Each component is rank-one, so it reads along one input direction (V) and writes along one output direction (U). We compared the output directions of the top false-preferring components with the actual output of the `down_proj` on our statements. They are close to orthogonal (an observation from the earlier runs that the current pipeline does not recompute). The components that best tell true from false are not the ones that carry most of what the MLP writes.
+**Component directions vs. the MLP output.** Each component is rank-one, so it reads along one input direction (V) and writes along one output direction (U). We compared the output directions of the top false-preferring components with the actual output of the `down_proj` on our statements. They are close to orthogonal. The components that best tell true from false are not the ones that carry most of what the MLP writes.
 
-**Comparison with the activation truth direction.** For every decomposed layer we compute the mass-mean truth direction of Marks and Tegmark (2024) in the residual stream right after that layer: θ = μ\_false − μ\_true at the answer token, on the held-out half of the run's target statements. We then take the cosine between θ and each component's output direction U\_c. We compare the top 8 components of the layer (the same ones as in the token firing) with the other components of that layer, and with the |cosine| expected for a random direction in 3,584 dimensions (≈ 0.013). Each cosine is signed by the component's average input coefficient on false statements, so a positive value means the component pushes the residual stream towards "false". \[TODO: numbers from `truth_direction_alignment.py` with the reruns\]
+**Comparison with the activation truth direction.** For every decomposed layer we compute the mass-mean truth direction of Marks and Tegmark (2024) in the residual stream right after that layer: θ = μ\_false − μ\_true at the answer token, on the held-out half of the run's target statements. We then take the cosine between θ and each component's output direction U\_c. We compare the top 8 components of the layer (the same ones as in the token firing) with the other components of that layer, and with the |cosine| expected for a random direction in 3,584 dimensions (≈ 0.013). Each cosine is signed by the component's average input coefficient on false statements, so a positive value means the component pushes the residual stream towards "false". \[TODO: numbers from `truth_direction_alignment.py`\]
 
 A null result here is weak evidence on its own: the truth direction could be written by attention or by layers we did not decompose. It is only informative together with the ablations.
 
@@ -147,20 +146,6 @@ How useful is tPD for discovering truth-related mechanisms? Useful as a compact 
 3. Is there a better control than random CI for "the decomposition found something real"?
 
 Code for the decompositions and all analyses: `spd/experiments/lm/honesty_targeted_decomposition/` in \[TODO: repository link\]. This work was done with Julian Bitterlich, Alexander Julius Busch and Lukas Galke Poech.
-
-## Earlier runs
-
-The numbers above come from these decompositions. They are on Hugging Face as private repos `mdnml/qwen2.5-7b-instruct-<repo>`. Their settings differ from each other and from the reruns.
-
-| Run | Repo | Seed | Sequence length |
-| --- | --- | --- | --- |
-| capitals-true | `tpd-capitals-true-old` | 0 | 64 |
-| capitals-false | `tpd-capitals-false-old-seed0`, `-seed1` | 0, 1 | 64 |
-| liu-true | `tpd-liu-true-old` | 0 | 128 |
-| liu-false | `tpd-liu-false-old` | 0 | 128 |
-| liu-false + TruthfulQA | `tpd-liu-tqa-false-old` | 2 | 128 |
-
-The liu-false + TruthfulQA run trained on the 50 TruthfulQA evaluation questions, so TruthfulQA is not held out for it.
 
 ## References
 
