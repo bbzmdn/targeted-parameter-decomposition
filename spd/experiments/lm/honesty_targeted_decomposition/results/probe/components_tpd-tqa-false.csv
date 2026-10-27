@@ -1,0 +1,7 @@
+module,component,beta
+model.layers.15.mlp.down_proj,18,0.846258
+model.layers.13.mlp.down_proj,88,0.0837636
+model.layers.18.mlp.down_proj,19,0.0354066
+model.layers.17.mlp.down_proj,90,0.0219199
+model.layers.19.mlp.down_proj,26,0.00555751
+model.layers.21.mlp.down_proj,43,0.00304613

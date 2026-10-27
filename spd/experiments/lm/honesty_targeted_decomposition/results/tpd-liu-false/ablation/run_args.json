@@ -1,0 +1,27 @@
+{
+  "run": "tpd-liu-false",
+  "ks": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32,
+    64,
+    128
+  ],
+  "per_layer_k": 8,
+  "n_random": 5,
+  "mask_value": 0.0,
+  "max_statements": 200,
+  "n_nontarget": 16,
+  "generate_groups": [
+    "top4_false",
+    "top8_false",
+    "random8_s0",
+    "all_components"
+  ],
+  "max_new_tokens": 24,
+  "batch_size": 8,
+  "seed": 0
+}

@@ -13,7 +13,8 @@ so the rest of the model's behaviour is preserved. We then ask three questions o
 decomposition:
 
 1. **Detection.** Do the components' causal importances (CI) tell true from false statements,
-   also on datasets the decomposition never saw? (logistic probe, token firing)
+   also on datasets the decomposition never saw? Do a few top components suffice? (logistic
+   probe, token firing)
 2. **Causality.** Does ablating the most truth-selective components change whether the model
    lies when told to? (group ablation)
 3. **Representation.** Do those components write along the residual-stream truth direction?
@@ -23,15 +24,18 @@ decomposition:
 
 The full write-up, with methods and tables, is in [RESULTS.md](RESULTS.md). In short:
 
-- **Detection works.** A logistic probe on the 960 CI values reaches 83.3 mean AUC over 18
-  held-out domains, close to the best probe on raw activations (86.3) with about 37 times
-  fewer features. It does well on some domains where activation probes are near chance.
+- **Detection works.** On the 7 domains no run saw (Geometry of Truth, TruthfulQA), a
+  logistic probe on the 960 CI values of a false-targeted run reaches 85 mean AUC, matching
+  logistic regression on raw activations (86.4; mass-mean 89.4). An untrained decomposition
+  gets 62. The 10 components ranked most truth-selective on the run's own target statements
+  reach 87-88; 10 random ones get 51-54. False-targeted runs transfer much better than
+  true-targeted ones.
 - **Causality only shows up all at once.** Ablating every component raises truthful answers
-  under a lying instruction from 17% to 46-54%. No small selected group beats random groups of
-  the same size; small groups change how the model lies, not whether it lies.
-- **The components do not look like a truth representation.** Their output directions are not
-  aligned with the activation truth direction, and the truth signal is spread over all
-  decomposed layers.
+  under a lying instruction from 6% to 30-51% (strict) in four of the eight runs. No small
+  selected group beats random groups of the same size.
+- **The components do not look like a truth representation.** Their output directions are no
+  more aligned with the activation truth direction than a random direction, and the most
+  truth-selective components are spread over six to eight of the ten decomposed layers.
 
 tPD is useful as a compact truth detector, but so far it does not isolate a causal truth
 mechanism.
@@ -83,12 +87,15 @@ size-matched random groups, all alive components, and all 960 components. It mea
 
 **Logistic probe**: L1 logistic regression on sequence-averaged CI, leave-one-domain-out over
 the 18 domains in `liu_per_domain_prompts/`:
-- 11 Liu et al., without arithmetic
-- 6 Geometry of Truth `got_*`
-- TruthfulQA
+- 11 Liu et al., without arithmetic: *in domain*, since the liu and capitals-liu-tqa runs were
+  trained on these exact statements
+- 6 Geometry of Truth `got_*` and TruthfulQA: *out of domain*, unseen by every run
 
-It is compared with activation baselines (mass-mean, logistic regression, PCA-300), an
-untrained decomposition, and random directions.
+Scores are reported for in domain, out of domain and pooled (all 18; mean over domains and one AUC over all held-out scores concatenated). Each run is probed on all
+960 components, its top k components (k = 10, 40, 80, 160; ranked as above), size-matched
+random subsets, the top 8 per layer, and the top 10 / 50 principal components of the CI. It is
+compared with activation baselines (mass-mean, logistic regression, PCA-300), an untrained
+decomposition, and random directions.
 
 **Truth-direction alignment**: cosine between each component's output direction U_c and the
 mass-mean truth direction (mean(false) − mean(true)) of the residual stream after its layer.
@@ -99,8 +106,10 @@ The top 8 per layer are compared with the rest of the layer and with a random di
 ```
 results/
 ├── probe/
-│   ├── summary.md             mean accuracy / AUC per method (the RESULTS.md table)
-│   ├── auc.csv, accuracy.csv  per held-out domain x method
+│   ├── summary.md             accuracy / AUC per method: in domain, out of domain, pooled
+│   ├── auc.csv, accuracy.csv  per held-out domain x method, plus group means and concatenated AUC
+│   ├── auc_table.png          per-domain AUC of the main methods (in RESULTS.md)
+│   ├── predictions_<run>.png  held-out probe score per statement (in RESULTS.md)
 │   └── components_<run>.csv   non-zero probe weights per component
 └── <run>/
     ├── component_scores.csv   all 960 components, ranked on the ranking half
