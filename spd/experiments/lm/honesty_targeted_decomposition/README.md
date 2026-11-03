@@ -20,6 +20,65 @@ decomposition:
 3. **Representation.** Do those components write along the residual-stream truth direction?
    (truth-direction alignment)
 
+## Getting started
+
+This experiment lives on the `feature/honesty-targeted-decomposition` branch, not on `main`.
+Switch to it before doing anything else, or you will not find this folder.
+
+```bash
+git clone https://github.com/bbzmdn/targeted-parameter-decomposition.git
+cd targeted-parameter-decomposition
+git checkout feature/honesty-targeted-decomposition
+
+uv sync                      # creates .venv (Python 3.13); or `make install-dev`
+source .venv/bin/activate
+cp .env.example .env         # add WANDB_API_KEY / WANDB_ENTITY (only needed for training)
+hf auth login                # needed to download the decompositions
+```
+
+**What you need.**
+
+- *Just reading the results.* Nothing. Everything is in [RESULTS.md](RESULTS.md) and
+  `results/` (see [Results layout](#results-layout)). The token firing pages
+  (`results/<run>/token_firing/L<layer>.html`) are plain HTML. GitHub shows their source, so
+  download them and open them in a browser. Hover over a token to see its CI.
+- *Re-running an analysis.* A CUDA GPU (the scripts use `cuda`; Qwen2.5-7B-Instruct alone
+  takes about 15 GB in bf16) and read access to the decompositions on Hugging Face. The
+  `mdnml/qwen2.5-7b-instruct-tpd-<run>` repos are private, so ask for access first. Qwen
+  itself downloads from `Qwen/Qwen2.5-7B-Instruct`.
+- *Training a decomposition yourself.* A large GPU, a W&B login (`tpd_config.yaml` logs to the
+  `spd` project) and the Pile, which is streamed. Run `run_tpd` with `--no-upload`. Uploads
+  only work under the `mdnml` Hugging Face account.
+
+**Quick examples.** All commands run from the repo root.
+
+```bash
+# token firing of one run -> results/tpd-liu-false/token_firing/
+python -m spd.experiments.lm.honesty_targeted_decomposition.visualize_token_firing --run tpd-liu-false
+
+# probes for two runs -> results/probe/
+python -m spd.experiments.lm.honesty_targeted_decomposition.fit_probe --runs tpd-liu-false tpd-tqa-false
+
+# train one run locally, without uploading -> SPD_OUT_DIR/spd/tpd-tqa-true/
+python -m spd.experiments.lm.honesty_targeted_decomposition.run_tpd --runs tpd-tqa-true --no-upload
+```
+
+Run names are `tpd-<target>-<polarity>` (see [The 8 runs](#the-8-runs)). A run is loaded from
+`SPD_OUT_DIR/spd/<run>/` if it is on disk (`~/spd_out` off the cluster) and from Hugging Face
+otherwise. Analysis outputs overwrite the files in `results/<run>/`.
+
+**Loading a decomposition in Python.**
+
+```python
+from spd.experiments.lm.honesty_targeted_decomposition.tpd_runs import load_tpd_model, load_tokenizer
+
+component_model, config = load_tpd_model("tpd-liu-false", "cuda")
+tokenizer = load_tokenizer(config)
+```
+
+`find_top_components.py` has the helpers for CI at the answer token (`answer_token_ci`), CI of
+every token (`token_ci`) and the component ranking (`score_components`).
+
 ## Results
 
 The full write-up, with methods and tables, is in [RESULTS.md](RESULTS.md). In short:
@@ -36,6 +95,10 @@ The full write-up, with methods and tables, is in [RESULTS.md](RESULTS.md). In s
 - **The components do not look like a truth representation.** Their output directions are no
   more aligned with the activation truth direction than a random direction, and the most
   truth-selective components are spread over six to eight of the ten decomposed layers.
+- **The verdict often shows up one token late.** In the broader false-targeted runs, more top
+  components separate true from false on the full stop after a statement than on its answer
+  token. Components keep their index across runs, so the same component can be compared
+  between decompositions.
 
 tPD is useful as a compact truth detector, but so far it does not isolate a causal truth
 mechanism.
